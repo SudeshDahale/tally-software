@@ -1,3 +1,4 @@
+Tally.ERP9/capsules/*.cap filter=lfs diff=lfs merge=lfs -text
 *.001 filter=lfs diff=lfs merge=lfs -text
 *.900 filter=lfs diff=lfs merge=lfs -text
 *.mdb filter=lfs diff=lfs merge=lfs -text
