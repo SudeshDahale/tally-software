@@ -1,0 +1,28 @@
+;; ============================================================
+;; DIAGNOSTIC TDL — Prabha Dairy TDL Load Test
+;; Purpose: Confirm whether a second TDL can load alongside dairy.tcp
+;; This file makes NO changes to any existing screen or logic.
+;; It only adds one harmless new menu item under Gateway of Tally
+;; so we can visually confirm it loaded.
+;; SAFE TO ADD AND SAFE TO REMOVE — touches nothing else.
+;; ============================================================
+
+[#Menu: Gateway of Tally]
+    Add : Item : Before : @@LocatePart
+    Item     : "Prabha TDL Test - If you see this, second TDL loaded OK" : Display : PrabhaTDLTestReport
+
+[Report: PrabhaTDLTestReport]
+    Form : PrabhaTDLTestForm
+
+[Form: PrabhaTDLTestForm]
+    Part : PrabhaTDLTestPart
+
+[Part: PrabhaTDLTestPart]
+    Line : PrabhaTDLTestLine
+
+[Line: PrabhaTDLTestLine]
+    Field : PrabhaTDLTestField
+
+[Field: PrabhaTDLTestField]
+    Type   : String
+    Set    : "SUCCESS: This second TDL file loaded correctly alongside dairy.tcp. No conflict detected."

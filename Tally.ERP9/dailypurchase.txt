@@ -1,0 +1,175 @@
+[Report: dailypurchase]
+	title:Daily Milk Purchase
+	Use			: DSP Template
+	Form		: dailypurchase
+	Variable	: DoSetAutoColumn, ledgername
+	variable:ledgername,groupname
+	
+
+
+	
+	Set         : SVFromDate          	: $$MonthStart:##SVCurrentDate
+	Set         : SVToDate             	: $$MonthEnd:##SVCurrentDate
+
+[Form: dailypurchase]
+
+	Use			: DSP Template
+	Parts		: tdailypurchase,dailypurchase
+	Background 	: @@sv_dashboard
+	button : schange ledger,sChange Group
+	
+
+[Key: sChange Ledger]
+		key:ctrl+l
+        Title       : $$LocaleString:"Ledger"
+        Action      : Modify Variables : Ledger Name
+
+    [Key: sChange Group]
+	key:ctrl+g
+        Title       : $$LocaleString:"Group"
+        Action      : Modify Variables : Group Name
+	
+[Part		: tdailypurchase]
+	line : dsp company name,dsp report period,tdailypurchase,ttdailypurchase2
+	[line :tdailypurchase]
+		field : name field
+		local: field : name field : set as :"Daily Millk Purchase Report"
+		local: field : name field : fullwidth : yes
+		local: field : name field : align : centre
+		local: field : name field : style: large bold
+		
+		
+	[line :ttdailypurchase2]
+	use:dailypurchase
+	local: field :dsp vch date: set as :"Date"
+	local: field :dsp vch number: set as :$vouchernumber
+	local: field :DSP VchLedAccount: set as :"Party Name"
+	local: field : default: delete:storage
+	local: field : default: type:string
+	local: field : cowmilk: set as :"Milk Type"
+	border : column titles
+	local: field :sample no: set as :"Sample No"
+	local: field :moreve: set as :"Time"
+	local:field : sour: set as :"Sour"
+	local:field : can: set as :"Cans"
+	local:field : degree: set as :"Degree"
+	local:field : fat: set as :"Fat"
+	local:field : snf: set as :"S.N.F."
+	local:field : litre: set as :"Qty"
+	local: field :number field: set as :"Rate"
+	local: field :amount field: set as :"Amount"
+	
+		
+	
+	
+
+[Part		: dailypurchase]
+	line :dailypurchase,totdailypurchase
+	repeat:dailypurchase:colldailypurchase
+	scroll: vertical
+	total :cowmilk,sample no,moreve,qty primary field
+	total: sour,can,litre
+	total:degree,fat,snf,number field,amount field
+	
+[line :totdailypurchase]
+	use:dailypurchase
+	border :column titles
+	local: field :number  field: set as :$$total:numberfield/$$numitems:colldailypurchase
+	local: field :amount field: set as :$$total:amountfield
+		local: field : default: delete:storage
+		local: field : cowmilk: set as :""
+	local: field :sample no: set as :$sampleno
+	local: field :moreve: set as :"Total/AVG"
+	local:field : sour: set as :$$total:sour
+	local:field : can: set as :$$total:can
+	local:field : degree: set as :$$total:degree/$$numitems:colldailypurchase
+	local:field : fat: set as :$$total:fat/$$numitems:colldailypurchase
+	local:field : snf: set as :$$total:snf/$$numitems:colldailypurchase
+	local:field : litre: set as :$$total:litre
+	
+	
+
+[line :dailypurchase]
+	field : dsp vch date,dsp vch number,DSP VchLedAccount
+	field :cowmilk,sample no,moreve
+	right field : sour,can
+	local: field :primary field: set as :$billedqty
+	local: field : default: delete:storage
+	right field :degree,fat,snf,litre,number  field,amount field
+	local: field : cowmilk: set as :$cowbuf
+	local: field :sample no: set as :$sampleno
+	local: field :moreve: set as :$moreve
+	local:field : sour: set as :$sour
+	local:field : can: set as :$can
+	local:field : degree: set as :$degree
+	local:field : fat: set as :$fat
+	local:field : snf: set as :$snf
+	local:field : litre: set as :$litre
+	local: field :number  field: set as :$$number:$$collectionfield:$rate:1:inventoryentries
+	local: field :number  field: align : right
+	local: field :number  field: format:"Decimals:2"
+	local: field :amount field: set as :$amount
+	local: field : dsp vch date: set as :$date
+	local: field : dsp vch number: set as :$vouchernumber
+	local: field : DSP VchLedAccount: set as :$partyledgername
+	
+
+	
+
+
+[collection :colldailypurchase]
+	type: voucher
+	filter:fcolldailypurchase
+	fetch :*.*,inventoryentries.*,partyledgername
+	filter : sgrp
+	filter :sled
+	[system:formula]
+		fcolldailypurchase:$$ispurchase:$vouchertypename and $vouchertypename contains "Milk"
+		sgrp: if $$issysname:#groupname then yes else $parent:ledger:$partyledgername=#groupname
+		sled: if $$issysname:#ledgername then yes else $partyledgername=#ledgername
+	
+
+	
+
+	
+	
+	
+
+
+[#Line           :  DSP VchDetail]
+	;;add: explode:myBILL InvDetails: $$ispurchase:$vouchertypename
+	
+[part: myBILL InvDetails]
+	line :myBILL InvDetails
+	
+	
+[line :myBILL InvDetails]
+	field : dsp vch date, name field 
+	;;medium  prompt,cowmilk,shortprompt2,moreve,short prompt3,amount field
+	;;FIELD : SHORT PROMPT4,LITRE,SHORT PROMPT5,FAT,SHORT PROMPT6,DEGREE
+	;;local: field :name field 
+	local: field :cowmilk: set as :$cowbuf
+	local: field :amount field : set as :$snf
+	local: field :moreve:set as :$moreve
+	local: field :LITRE: set as :$LITRE
+	local: field : short prompt2	: set as :"Time"
+	local: field : short prompt3	: set as :"S.N.F."
+	local: field : short prompt4	: set as :"LITRE"
+	local: field :sMVCH Godown: show table :always
+	local: field : short prompt5	: set as :"FAT"
+	local: field : short prompt6	: set as :"DEGREE"
+	local: field : DEGREE	: set as :$DEGREE	
+	local:field : medium prompt: set as : "Milk Type"
+	local:field:Short prompt: set as :"Sample No."
+	local: field : default: style:SMALL bold
+	LOCAL: FIELD : DEFAULT: WIDTH: 9
+	
+	
+
+[#Collection: SRC Ledger Vouchers Coll]
+	fetch:moreve,cowbuf,fat,snf,litre,DEGREE
+	
+	
+
+[#Collection: Ledger Vouchers Coll]
+fetch:moreve,cowbuf,fat,snf,litre,DEGREE
