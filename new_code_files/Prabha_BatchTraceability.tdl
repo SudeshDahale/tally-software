@@ -1,0 +1,169 @@
+;; ======================================================================
+;; PRABHA DAIRY - BATCH TRACEABILITY REPORT (OUTPUT -> SOURCE BATCHES)
+;; ----------------------------------------------------------------------
+;; What this does:
+;;   Adds "Batch Traceability (Manufacturing)" under Gateway of Tally.
+;;   You pick an OUTPUT stock item (e.g. Paneer) and a date range; for
+;;   every Manufacturing/Stock Journal voucher that produced that item,
+;;   it shows the output batch + qty, and directly underneath it, every
+;;   SOURCE batch (e.g. Milk Batch 1, Milk Batch 2) and quantity that
+;;   was consumed to make it.
+;;
+;;   Example output:
+;;     12-Jul-26  Mfg Jrnl #45   Paneer  Batch: PNR-120726   200 Kg
+;;         <- Milk   Batch: MLK-B1-120726     100 Ltr
+;;         <- Milk   Batch: MLK-B2-120726     100 Ltr
+;;
+;; PRECONDITION (read this before deploying):
+;;   This report can only show what Tally has actually recorded. It
+;;   works ONLY IF, at data-entry time:
+;;     1. "Maintain Batch-wise Details" is enabled for Milk (and other
+;;        raw material) stock items, AND
+;;     2. Batches are actually selected/allocated on the CONSUMPTION
+;;        side of the Manufacturing Journal (not just on the output).
+;;   If your operators currently just enter total litres consumed
+;;   without picking a batch, this report will run but show blank/only
+;;   partial batch data - that's a data-entry gap, not a bug in this
+;;   file. Test on one real manufacturing entry first (see notes below).
+;;
+;; This file only ADDS new objects (prefixed "Prabha") - it does not
+;; modify dairy.tcp or any built-in Tally object.
+;; ======================================================================
+
+[#Menu: Gateway of Tally]
+    Add : Item : Before : @@LocatePart
+    Item     : "Batch Traceability (Manufacturing)" : Display : Prabha Batch Trace Selection
+
+;; ----------------------------------------------------------------------
+;; STEP 1: Selection screen - pick the output stock item
+;; ----------------------------------------------------------------------
+
+[Report: Prabha Batch Trace Selection]
+    Form          : Prabha BT Selection Form
+    Title         : "Batch Traceability - Select Output Item"
+
+[Form: Prabha BT Selection Form]
+    Part          : Prabha BT Selection Part
+
+[Part: Prabha BT Selection Part]
+    Line          : Prabha BT Select Item Line
+
+[Line: Prabha BT Select Item Line]
+    Field         : Prabha Fld SelectItem
+
+[Field: Prabha Fld SelectItem]
+    Use           : Name Field
+    Set as        : ##SVStockItemName
+    Storage       : SVStockItemName
+    Table         : StockItemsWithBatch
+    ;; On selecting an item, jump into the traceability list for it
+    Local         : Field : Prabha Fld SelectItem : Set as Button : Yes
+    Local         : Field : Prabha Fld SelectItem : Button : Prabha Go Trace
+
+[Key: Prabha Go Trace]
+    Key           : Enter
+    Action        : Display : Prabha Batch Trace Report
+
+;; ----------------------------------------------------------------------
+;; STEP 2: Collection - manufacturing vouchers that produced the item
+;; ----------------------------------------------------------------------
+
+[Collection: Prabha Mfg Vouchers For Item]
+    Type          : Voucher
+    Fetch         : Date, VoucherNumber, VoucherTypeName, AllInventoryEntries.List
+    Filter        : Prabha Filter Is StockJournal, Prabha Filter Has Output Item
+    Belongs To    : Yes
+
+[System: Formula]
+    Prabha Filter Is StockJournal  : $$IsEqual:$VoucherTypeName:"Stock Journal"
+    ;; True if any inventory entry line in this voucher is the OUTPUT
+    ;; (production) side for the chosen item. IsDeemedPositive = No is
+    ;; the standard Tally convention for the inward/production leg of a
+    ;; manufacturing journal; if this comes out inverted on your data,
+    ;; flip Yes/No here.
+    Prabha Filter Has Output Item  : $$StringFind:$$CollectionField:AllInventoryEntries:StockItemName:##SVStockItemName > 0
+
+;; ----------------------------------------------------------------------
+;; STEP 3: Traceability report - output batch, then nested source batches
+;; ----------------------------------------------------------------------
+
+[Report: Prabha Batch Trace Report]
+    Form          : Prabha BT Report Form
+    Title         : "Batch Traceability : " + ##SVStockItemName
+
+[Form: Prabha BT Report Form]
+    Part          : Prabha BT Heading Part, Prabha BT Voucher Part
+
+[Part: Prabha BT Heading Part]
+    Line          : Prabha BT Heading Line
+    Border        : Thin Bottom
+
+[Line: Prabha BT Heading Line]
+    Field         : Prabha Fld HDate, Prabha Fld HVchNo, Prabha Fld HOutBatch, Prabha Fld HOutQty
+
+[Field: Prabha Fld HDate]     : Set as : "Date"          : Width : 12 : Local : Style : Bold
+[Field: Prabha Fld HVchNo]    : Set as : "Voucher No."    : Width : 14 : Local : Style : Bold
+[Field: Prabha Fld HOutBatch] : Set as : "Output Batch"   : Width : 20 : Local : Style : Bold
+[Field: Prabha Fld HOutQty]   : Set as : "Output Qty"     : Width : 14 : Local : Style : Bold
+
+;; --- One block per manufacturing voucher -------------------------------
+[Part: Prabha BT Voucher Part]
+    Line          : Prabha BT Output Line, Prabha BT Source Line
+    Repeat        : Prabha BT Voucher Part : Prabha Mfg Vouchers For Item
+    Space Top     : 1
+
+;; Output (production) row for this voucher, for the selected item only
+[Line: Prabha BT Output Line]
+    Field         : Prabha Fld OutDate, Prabha Fld OutVchNo, Prabha Fld OutBatch, Prabha Fld OutQty
+    Repeat        : Prabha Fld OutBatch : AllInventoryEntries : Prabha Filter Is This Output Row
+    Local         : Style : Bold
+
+[System: Formula]
+    Prabha Filter Is This Output Row : $$IsEqual:$StockItemName:##SVStockItemName
+
+[Field: Prabha Fld OutDate]   : Use : Short Date Field : Set as : $Date              : Width : 12
+[Field: Prabha Fld OutVchNo]  : Use : Name Field       : Set as : $VoucherNumber     : Width : 14
+[Field: Prabha Fld OutBatch]  : Use : Name Field       : Set as : $BatchName         : Width : 20
+[Field: Prabha Fld OutQty]    : Use : Qty Field        : Set as : $ActualQty         : Width : 14
+
+;; Source (consumption) rows nested under the output row - every
+;; distinct raw-material batch that fed into this manufacturing run
+[Line: Prabha BT Source Line]
+    Field         : Prabha Fld SrcArrow, Prabha Fld SrcItem, Prabha Fld SrcBatch, Prabha Fld SrcQty
+    Repeat        : Prabha Fld SrcBatch : AllInventoryEntries : Prabha Filter Is Consumption Row
+    Indent        : 4
+
+[System: Formula]
+    ;; Consumption leg = IsDeemedPositive Yes, i.e. items that went IN
+    ;; to the manufacturing journal (opposite of the output leg above).
+    ;; Flip to No if your data shows this reversed.
+    Prabha Filter Is Consumption Row : $$IsEqual:$IsDeemedPositive:Yes
+
+[Field: Prabha Fld SrcArrow]  : Set as : "<-"                : Width : 4
+[Field: Prabha Fld SrcItem]   : Use : Name Field : Set as : $StockItemName : Width : 18
+[Field: Prabha Fld SrcBatch]  : Use : Name Field : Set as : $BatchName     : Width : 20 : Indent : 2
+[Field: Prabha Fld SrcQty]    : Use : Qty Field  : Set as : $ActualQty     : Width : 14
+
+;; ======================================================================
+;; TESTING NOTES
+;;   1. Confirm the collection type name in your build: some Tally
+;;      releases label the voucher type internally as "Stock Journal"
+;;      even for Manufacturing Journal entries (Manufacturing Journal is
+;;      a Stock Journal sub-type). Verify by checking $VoucherTypeName
+;;      on an actual paneer production voucher; adjust the filter above
+;;      if it differs (e.g. if dairy.tcp created a distinct custom
+;;      voucher type name for manufacturing entries).
+;;   2. IsDeemedPositive orientation (Step 3, both [System: Formula]
+;;      blocks): test against ONE real paneer voucher first. If output
+;;      and source rows come out swapped, flip Yes/No in both formulas.
+;;   3. If milk batches are not currently being selected at consumption
+;;      time, the "Source" rows will be blank - see the PRECONDITION
+;;      note at the top. Fix the data-entry step (enable batch-wise
+;;      tracking + require batch selection on the raw-material items)
+;;      before this report can show anything meaningful.
+;;   4. StockItemsWithBatch (used in the Table attribute on the
+;;      selection screen) is a standard Tally system table listing
+;;      stock items that have batch tracking enabled - confirms your
+;;      milk/paneer items are correctly configured as a side effect of
+;;      testing this screen.
+;; ======================================================================

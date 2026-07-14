@@ -1,0 +1,246 @@
+;; ======================================================================
+;; PRABHA DAIRY - CUSTOM RECEIPT VOUCHER FORMAT (BETTER HIERARCHY)
+;; ----------------------------------------------------------------------
+;; What this does:
+;;   Adds a new menu item "Receipt Register (Custom)" under Gateway of
+;;   Tally. It lists all Receipt vouchers; pressing Enter on any row
+;;   opens a redesigned, clearly-hierarchical single-voucher view that
+;;   can be printed with the standard P:Print key (Tally auto-shows
+;;   Print on any displayed report, no need to touch Alt+P internals).
+;;
+;; Why this approach:
+;;   We do not have dairy.tcp's source, so we never modify Tally's
+;;   built-in Voucher Printing form. This file only ADDS new objects,
+;;   following the same safe pattern already proven in your own
+;;   test_tdl_diagnostic.tdl (second TDL loads alongside dairy.tcp with
+;;   no conflict). All object names are prefixed "Prabha" to avoid any
+;;   collision with dairy.tcp's internal names.
+;;
+;; Hierarchy in the printed layout (top to bottom):
+;;   1. Company header block
+;;   2. Voucher identity block   (No. / Date)
+;;   3. Party block              (Received From)
+;;   4. Instrument/Mode block    (Cash / Bank / Cheque / UTR)
+;;   5. Ledger allocation table  (indented, grouped, running total)
+;;   6. Amount in words
+;;   7. Narration
+;;   8. Signature block
+;;
+;; SAFE TO ADD AND SAFE TO REMOVE - deploy in a sandbox copy first.
+;; ======================================================================
+
+[#Menu: Gateway of Tally]
+    Add : Item : Before : @@LocatePart
+    Item     : "Receipt Register (Custom)" : Display : Prabha Receipt Register
+
+;; ----------------------------------------------------------------------
+;; STEP 1: Collection - all Receipt-type vouchers
+;; ----------------------------------------------------------------------
+
+[Collection: Prabha Receipt Vouchers]
+    Type          : Voucher
+    Fetch         : Date, VoucherNumber, PartyLedgerName, Amount, Narration
+    Filter        : Prabha Filter Is Receipt
+    Belongs To    : Yes
+
+[System: Formula]
+    Prabha Filter Is Receipt : $$IsEqual:$VoucherTypeName:"Receipt"
+
+;; ----------------------------------------------------------------------
+;; STEP 2: List report - Receipt Register (this is the "menu landing page")
+;; ----------------------------------------------------------------------
+
+[Report: Prabha Receipt Register]
+    Form          : Prabha Receipt Register Form
+    Title         : "Receipt Register (Custom Format)"
+
+[Form: Prabha Receipt Register Form]
+    Part          : Prabha Receipt Register Part
+
+[Part: Prabha Receipt Register Part]
+    Line          : Prabha Receipt Register Heading, Prabha Receipt Register Row
+    Repeat        : Prabha Receipt Register Row : Prabha Receipt Vouchers
+    Scroll        : Vertical
+
+[Line: Prabha Receipt Register Heading]
+    Field         : Prabha Lbl Date, Prabha Lbl VchNo, Prabha Lbl Party, Prabha Lbl Amount
+
+[Line: Prabha Receipt Register Row]
+    Field         : Prabha Fld Date, Prabha Fld VchNo, Prabha Fld Party, Prabha Fld Amount
+    ;; Enter on a row opens the hierarchical single-voucher view below,
+    ;; carrying the current Voucher object context automatically.
+    Local         : Field : Prabha Fld VchNo : Set as Button : Yes
+    Local         : Field : Prabha Fld VchNo : Button : Prabha View Receipt
+
+[Key: Prabha View Receipt]
+    Key           : Enter
+    Action        : Display : Prabha Receipt Detail
+
+[Field: Prabha Lbl Date]     : Set as : "Date"           : Width : 12
+[Field: Prabha Lbl VchNo]    : Set as : "Vch No."         : Width : 12
+[Field: Prabha Lbl Party]    : Set as : "Received From"   : Width : 35
+[Field: Prabha Lbl Amount]   : Set as : "Amount"          : Width : 15
+
+[Field: Prabha Fld Date]     : Use : Short Date Field  : Set as : $Date       : Width : 12
+[Field: Prabha Fld VchNo]    : Use : Name Field        : Set as : $VoucherNumber : Width : 12
+[Field: Prabha Fld Party]    : Use : Name Field        : Set as : $PartyLedgerName : Width : 35
+[Field: Prabha Fld Amount]   : Use : Amount Field      : Set as : $Amount     : Width : 15
+
+;; ----------------------------------------------------------------------
+;; STEP 3: Hierarchical single-voucher view (this is the printable layout)
+;; ----------------------------------------------------------------------
+
+[Report: Prabha Receipt Detail]
+    Form          : Prabha Receipt Detail Form
+    Title         : "Receipt Voucher"
+
+[Form: Prabha Receipt Detail Form]
+    Part          : Prabha RD Company Part, Prabha RD Identity Part, Prabha RD Party Part, ¬
+                    Prabha RD Instrument Part, Prabha RD Ledger Part, Prabha RD Words Part, ¬
+                    Prabha RD Narration Part, Prabha RD Signature Part
+    Space Top     : 1
+    Space Bottom  : 1
+
+;; --- 1. Company header -------------------------------------------------
+[Part: Prabha RD Company Part]
+    Line          : Prabha RD Company Line
+    Border        : Thin Bottom
+
+[Line: Prabha RD Company Line]
+    Field         : Prabha Fld CompanyName
+
+[Field: Prabha Fld CompanyName]
+    Set as        : $$CompanyName
+    Align         : Centre
+    Local         : Font Size : 14
+    Local         : Style    : Bold
+
+;; --- 2. Voucher identity block -----------------------------------------
+[Part: Prabha RD Identity Part]
+    Line          : Prabha RD Identity Line
+    Space Top     : 1
+
+[Line: Prabha RD Identity Line]
+    Field         : Prabha Fld TitleReceipt, Prabha Fld IdVchNo, Prabha Fld IdDate
+
+[Field: Prabha Fld TitleReceipt]
+    Set as        : "RECEIPT VOUCHER"
+    Local         : Style : Bold
+    Width         : 30
+
+[Field: Prabha Fld IdVchNo]
+    Set as        : "No.: " + $VoucherNumber
+    Width         : 25
+    Align         : Centre
+
+[Field: Prabha Fld IdDate]
+    Set as        : "Date: " + $$String:$Date
+    Width         : 25
+    Align         : Right
+
+;; --- 3. Party block ------------------------------------------------------
+[Part: Prabha RD Party Part]
+    Line          : Prabha RD Party Line
+    Space Top     : 1
+
+[Line: Prabha RD Party Line]
+    Field         : Prabha Fld PartyLbl, Prabha Fld PartyVal
+
+[Field: Prabha Fld PartyLbl]
+    Set as        : "Received From :"
+    Width         : 20
+    Local         : Style : Bold
+
+[Field: Prabha Fld PartyVal]
+    Set as        : $PartyLedgerName
+    Width         : 50
+
+;; --- 4. Instrument / mode block ------------------------------------------
+;; Walks the ledger entries to surface Bank/Cheque details if present
+;; (BankAllocations sub-collection on the ledger entry, when the
+;; receipt was posted through a bank ledger with cheque/UTR details).
+[Part: Prabha RD Instrument Part]
+    Line          : Prabha RD Instrument Line
+    Repeat        : Prabha RD Instrument Line : AllLedgerEntries : Prabha Has Bank Details
+    Space Top     : 1
+
+[System: Formula]
+    Prabha Has Bank Details : $$IsEmpty:$BankAllocations:BankersDate = No
+
+[Line: Prabha RD Instrument Line]
+    Field         : Prabha Fld InstLbl, Prabha Fld InstBankName, Prabha Fld InstDate, Prabha Fld InstRef
+
+[Field: Prabha Fld InstLbl]      : Set as : "Instrument :"                            : Width : 14 : Local : Style : Bold
+[Field: Prabha Fld InstBankName] : Set as : $LedgerName                               : Width : 25
+[Field: Prabha Fld InstDate]     : Set as : $$String:$BankersDate:"DD-MMM-YYYY"        : Width : 18
+[Field: Prabha Fld InstRef]      : Set as : $InstrumentNumber                          : Width : 18
+
+;; --- 5. Ledger allocation table (grouped + indented) ---------------------
+[Part: Prabha RD Ledger Part]
+    Line          : Prabha RD Ledger Heading, Prabha RD Ledger Row
+    Repeat        : Prabha RD Ledger Row : AllLedgerEntries
+    Border        : Thin Top Bottom
+    Space Top     : 1
+
+[Line: Prabha RD Ledger Heading]
+    Field         : Prabha Fld LHLedger, Prabha Fld LHDrCr, Prabha Fld LHAmount
+    Local         : Style : Bold
+
+[Line: Prabha RD Ledger Row]
+    Field         : Prabha Fld LLedger, Prabha Fld LDrCr, Prabha Fld LAmount
+    ;; simple indent to show hierarchy of which ledger the amount is under
+    Indent        : 2
+
+[Field: Prabha Fld LHLedger]  : Set as : "Ledger"     : Width : 35
+[Field: Prabha Fld LHDrCr]    : Set as : "Dr/Cr"      : Width : 10
+[Field: Prabha Fld LHAmount]  : Set as : "Amount"     : Width : 15
+
+[Field: Prabha Fld LLedger]   : Use : Name Field   : Set as : $LedgerName                                  : Width : 35
+[Field: Prabha Fld LDrCr]     : Set as : $$IfElse:$IsDeemedPositive:"Dr":"Cr"                              : Width : 10
+[Field: Prabha Fld LAmount]   : Use : Amount Field : Set as : $Amount                                      : Width : 15
+
+;; --- 6. Amount in words ----------------------------------------------------
+[Part: Prabha RD Words Part]
+    Line          : Prabha RD Words Line
+    Space Top     : 1
+
+[Line: Prabha RD Words Line]
+    Field         : Prabha Fld WordsLbl, Prabha Fld WordsVal
+
+[Field: Prabha Fld WordsLbl] : Set as : "Rupees in Words :" : Width : 20 : Local : Style : Bold
+[Field: Prabha Fld WordsVal] : Set as : $$AmountInWords:$Amount : Width : 55
+
+;; --- 7. Narration ------------------------------------------------------------
+[Part: Prabha RD Narration Part]
+    Line          : Prabha RD Narration Line
+    Space Top     : 1
+
+[Line: Prabha RD Narration Line]
+    Field         : Prabha Fld NarrLbl, Prabha Fld NarrVal
+
+[Field: Prabha Fld NarrLbl] : Set as : "Narration :" : Width : 20 : Local : Style : Bold
+[Field: Prabha Fld NarrVal] : Set as : $Narration     : Width : 55
+
+;; --- 8. Signature block --------------------------------------------------
+[Part: Prabha RD Signature Part]
+    Line          : Prabha RD Signature Line
+    Space Top     : 3
+
+[Line: Prabha RD Signature Line]
+    Field         : Prabha Fld PreparedBy, Prabha Fld AuthSign
+
+[Field: Prabha Fld PreparedBy] : Set as : "Prepared By"           : Width : 30 : Align : Centre
+[Field: Prabha Fld AuthSign]   : Set as : "Authorised Signatory"  : Width : 30 : Align : Centre
+
+;; ======================================================================
+;; TESTING NOTES
+;;   - Field names for bank details (BankAllocations / BankersDate /
+;;     InstrumentNumber) match standard Tally.ERP9 objects but should be
+;;     confirmed against your 6.6.3 build in a sandbox: open a Receipt
+;;     entered via a bank ledger, check whether these populate.
+;;   - $$AmountInWords is a standard Tally system function; if your
+;;     release names it differently, replace with $$AmountInMillionWords
+;;     or check Help > TDL & Add-On > Function list.
+;;   - If dairy.tcp already defines an object literally named
+;;     "Prabha ..." (unlikely), rename the prefix throughout this file.
+;; ======================================================================
